@@ -15,11 +15,12 @@ import numpy as np
 #from pynput.mouse import Listener
 from PIL import Image
 #from number_recognition import NumberRecognizer
-
-from multiprocessing import Pool
+import itertools
+from multiprocessing import Pool,Value,Process,Lock
 ## Shadystuff for global mouseAction event
 x,y,h,w = 0,0,100,100
 frame,clone = None,None
+worker_progress, RANGE = 0,0
 rectangles = [(893, 397, 54, 54), (1213, 388, 78, 78)]
 
 DEST = "Screenshots\\"
@@ -88,9 +89,9 @@ def  mouseAction(event,x_loc,y_loc,flags,param):
     cv2.imshow('Frame', frame)
 
 
-def save_screenshots(path:str,interval:int=10,fps:int=30,start:int=26,dil=(1,1),threshold=130,end=-1):
+def save_screenshots(path:str,interval:int=10,fps:int=30,start:int=26,dil=(1,1),threshold=130,end=10):
     """Saves a screenshot from pathvideo every interval seconds
-       Frame000i.png
+       Frame000i.png 
        -> returns array of array with parsed numbers
     """
     global rectangles
@@ -116,7 +117,6 @@ def save_screenshots(path:str,interval:int=10,fps:int=30,start:int=26,dil=(1,1),
             #cv2.imwrite(f'{DEST}Frame{i:04d}.png',frame)
             numbers.append(split_frame_read_number(rectangles,frame,i,dil,threshold))
             #print(f'Frame{i:04d}.png')
-            if i % 50 == 0: print(".",end="")
             i = i + 1
         else:
             break
@@ -240,7 +240,7 @@ def init_argparse():
 
 def get_numbers(img):
     """reads digits from a picture via teseract"""
-    return pytesseract.image_to_string(img, lang='eng', config='--psm 10 --oem 3 -c tessedit_char_whitelist=0123456789')
+    return pytesseract.image_to_string(img, lang='eng', config='--psm 5 --oem 3 -c tessedit_char_whitelist=0123456789')
 
 def read_values_from_csv(path:str):
     """reads values from csv-file evaluated by hand
@@ -260,11 +260,13 @@ def worker(param):
     """
     returns dict(threshold, (#mistakes0, #mistakes1), [wrong values (index frame, 0 or 1,wrong value, right value)])
     """
+    
     t = time.time()
-    right_values,dil,threshold = param
-    print(threshold)
+    right_values,dil,threshold,ran = param
+    print("Starting with", (dil,dil), threshold)
+
     path, fps, interval,start = init_argparse()
-    ocr_values = save_screenshots(path,interval,fps,start,dil,threshold)
+    ocr_values = save_screenshots(path,interval,fps,start,(dil,dil),threshold)
     mistake_count = [0,0]
     wrong_values = []
     for i in range(min(len(ocr_values),len(right_values))):
@@ -274,23 +276,31 @@ def worker(param):
         if not ocr_values[i][1].isdigit() or not ocr_values[i][1] or right_values[i][1] != ocr_values[i][1]:
             mistake_count[1] +=1
             wrong_values.append((i,1,ocr_values[i][1],right_values[i][1]))
+
     print("workertime:",time.time()-t)
-    return {"threshold":threshold,"mistakes":mistake_count,"wrong_values":wrong_values,"right_values":right_values,"ocr_values":ocr_values}
+    return {"threshold":threshold,"dilate":dil,"mistakes":mistake_count,"wrong_values":wrong_values,"right_values":right_values,"ocr_values":ocr_values}
 def sort_0(elem):
     return elem["mistakes"][0]
 def sort_1(elem):
     return elem["mistakes"][1]
-def test_bench(worker_threads:int,threshold_start:int, threshold_end:int,threshold_stepsize:int):
-    
+def test_bench(worker_threads:int,threshold_start:int, threshold_end:int,threshold_stepsize:int,dilate_start:int,dilate_end:int,path_to_csv:str):
+
+    ran = ((threshold_end - threshold_start)//threshold_stepsize)*(dilate_end-dilate_start+1)
     path, fps, interval,start = init_argparse()
     right_values = read_values_from_csv("Daten_IONIQ5_WLTC_Eco_handgeschrieben.csv")
-    dil = (1,1)
+    dil = [i for i in range(dilate_start,dilate_end+1)]
+    thresholds = [i for i in range(threshold_start,threshold_end,threshold_stepsize)]
+    print(f'Searching for the best Threshold [{threshold_start} - {threshold_end}] and Dilate [{dilate_start} - {dilate_end}] value')
+    print(f'There are {ran} possibilities')
+    print(f'Creating folder "TestBenchOutput"')
+    print(f'Starting {worker_threads} worker processes')
+    os.makedirs("TestBenchOutput",exist_ok=True)
     t = time.time()
-    arg_list = [[right_values,dil,i] for i in range(threshold_start,threshold_end,threshold_stepsize)]
-    all = None
+    arg_list = [[right_values,x,y,ran] for x,y in itertools.product(dil,thresholds)]
+    all = []
     ## Multitprocessing start
     with Pool(worker_threads) as p:
-         all = p.map(worker,arg_list)
+         all = p.map(worker,(arg_list))
     print()
     print(time.time()-t)
     #print("len difference: ", len(right_values) - len(ocr_values))
@@ -303,7 +313,7 @@ def test_bench(worker_threads:int,threshold_start:int, threshold_end:int,thresho
 
 
     ## Output to file
-    f = open(f"output_{''.join(time.asctime().split(' ')[1:4]).replace(':','_')}SortParam1.txt","w")
+    f = open(f"TestBenchOutput\\output_{''.join(time.asctime().split(' ')[1:4]).replace(':','_')}SortParam1.txt","w")
     all.sort(key=sort_0,reverse=False)
     for s in all:
         f.write("-"*25+"\n")
@@ -312,7 +322,7 @@ def test_bench(worker_threads:int,threshold_start:int, threshold_end:int,thresho
             f.write(key+" : "+str(s[key])+"\n")
     f.close()
     all.sort(key=sort_1,reverse=False)
-    f = open(f"output_{''.join(time.asctime().split(' ')[1:4]).replace(':','_')}SortParam2.txt","w")
+    f = open(f"TestBenchOutput\\output_{''.join(time.asctime().split(' ')[1:4]).replace(':','_')}--Threshold{str((threshold_start,threshold_end,threshold_stepsize))}--Dilate{str((dilate_start,dilate_end))}SortParam2.txt","w")
     for s in all:
         f.write("-"*25+"\n")
 
@@ -338,16 +348,16 @@ def print_candidates(arr,limit=10,fromFile=False):
     print(f'{"Parameter 1" :-^35}')
     
     arr.sort(key=sort_0,reverse=False)
-    print(f'{"Threshold": <10}{"Mistakes": ^10}')
+    print(f'{"Threshold": <10}{"Dilate": ^10}{"Mistakes": ^10}')
     for t in arr[:limit]:
-        print(f'{t["threshold"]: <10}{t["mistakes"][0]: ^10}')
+        print(f'{t["threshold"]: <10}{t["dilate"]: ^10}{t["mistakes"][0]: ^10}')
     print("\n")
 
     print(f'{"Parameter 2" :-^35}')
     arr.sort(key=sort_1,reverse=False)
-    print(f'{"Threshold": <10}{"Mistakes": ^10}')
+    print(f'{"Threshold": <10}{"Dilate": ^10}{"Mistakes": ^10}')
     for t in arr[:limit]:
-        print(f'{t["threshold"]: <10}{t["mistakes"][1]: ^10}')
+        print(f'{t["threshold"]: <10}{t["dilate"]: ^10}{t["mistakes"][1]: ^10}')
 def main():
 
     path, fps, interval,start = init_argparse()
@@ -364,8 +374,8 @@ def main():
 
 if __name__ == "__main__":
     #main()
-    # worker_threads, start_value, end_value, stepsize
-    test_bench(12,5,250,1)
+    # worker_threads, threshold start_value, thresholdend_value,threshold stepsize, dilate start, dilate end, path to csv
+    test_bench(7,130,140,2,0,1,"Daten_IONIQ5_WLTC_Eco_handgeschrieben.csv")
     #read_values_from_csv("Daten_IONIQ5_WLTC_Eco_handgeschrieben.csv")
     #print_candidates("outputNov2117_13_00.txt",10,True)
     pass
