@@ -89,7 +89,7 @@ def  mouseAction(event,x_loc,y_loc,flags,param):
     cv2.imshow('Frame', frame)
 
 
-def save_screenshots(path:str,interval:int=10,fps:int=30,start:int=26,dil=(1,1),threshold=130,end=10):
+def save_screenshots(path:str,interval:int=10,fps=29.97,start:int=26,dil=(1,1),threshold=130,end=-1):
     """Saves a screenshot from pathvideo every interval seconds
        Frame000i.png 
        -> returns array of array with parsed numbers
@@ -98,9 +98,8 @@ def save_screenshots(path:str,interval:int=10,fps:int=30,start:int=26,dil=(1,1),
     numbers = []
     if not interval: interval = 10
     if not start: start = 26
-    if not fps: fps = 30 
+    if not fps: fps = 29.97
     assert type(interval) == int
-    assert type(fps) == int
 
     cap = cv2.VideoCapture(path)
     if (not cap.isOpened()):
@@ -109,7 +108,7 @@ def save_screenshots(path:str,interval:int=10,fps:int=30,start:int=26,dil=(1,1),
     i = 0
 
     while (cap.isOpened()):
-        pos = i * fps * interval + (fps * start)
+        pos = int(round(i * fps * interval + (fps * start)))
         cap.set(cv2.CAP_PROP_POS_FRAMES,pos-1)
         ret, frame = cap.read()
         if ret and i != end:
@@ -137,7 +136,12 @@ def transform_frame(img,dil,threshold):
     img = cv2.bitwise_not(img)
     #cv2.imwrite("test.png",img)
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
+def rotate_image(image, angle):
+  image_center = tuple(np.array(image.shape[1::-1]) / 2)
+  rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+  result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+  return result
+
 
 def make_screen_right_again_noisy(img,threshhold,dil):
     """NOISY: Takes cv2.img and makes it teseract readable"""
@@ -208,7 +212,8 @@ def split_frame_read_number(rectangles,frame,i,dil,threshold):
    
     for (x,y,w,h) in rectangles:
         j+=1
-      
+        if j == 2:
+            frame = rotate_image(frame,3)
         #cv2.imwrite(f'{DEST}Frame{i:04d}_{j}.png',transform_frame(frame[y:y+h,x:x+w],dil,threshold))
         num = get_numbers(transform_frame(frame[y:y+h,x:x+w],dil,threshold)).replace("\n","")
         out.append(num)
@@ -240,7 +245,7 @@ def init_argparse():
 
 def get_numbers(img):
     """reads digits from a picture via teseract"""
-    return pytesseract.image_to_string(img, lang='eng', config='--psm 5 --oem 3 -c tessedit_char_whitelist=0123456789')
+    return pytesseract.image_to_string(img, lang='eng', config='--psm 10 --oem 3 -c tessedit_char_whitelist=0123456789')
 
 def read_values_from_csv(path:str):
     """reads values from csv-file evaluated by hand
@@ -251,7 +256,7 @@ def read_values_from_csv(path:str):
     with open(path,newline="") as csvfile:
         spamreader = csv.reader(csvfile,delimiter=";")
         for row in spamreader:
-            out.append((row[1].replace(",","."),row[2]))
+            out.append([row[1].replace(",","."),row[2]])
     out = out[1:] # erste Zeile skippen
     return out
             
@@ -272,10 +277,14 @@ def worker(param):
     for i in range(min(len(ocr_values),len(right_values))):
         if not ocr_values[i][0].replace(".","").isdigit() or not ocr_values[i][0] or right_values[i][0].replace(".","") != ocr_values[i][0]:
             mistake_count[0] +=1
-            wrong_values.append((i,0,ocr_values[i][0],right_values[i][0]))
+            wrong_values.append((i,0,ocr_values[i][0][:2]+"."+ocr_values[i][0][2:],right_values[i][0]))
         if not ocr_values[i][1].isdigit() or not ocr_values[i][1] or right_values[i][1] != ocr_values[i][1]:
             mistake_count[1] +=1
             wrong_values.append((i,1,ocr_values[i][1],right_values[i][1]))
+
+    for i in range(len(ocr_values)): ##! Better readability in logs
+        ocr_values[i][0] = ocr_values[i][0][:2] + "." + ocr_values[i][0][2:]
+
 
     print("workertime:",time.time()-t)
     return {"threshold":threshold,"dilate":dil,"mistakes":mistake_count,"wrong_values":wrong_values,"right_values":right_values,"ocr_values":ocr_values}
@@ -375,7 +384,7 @@ def main():
 if __name__ == "__main__":
     #main()
     # worker_threads, threshold start_value, thresholdend_value,threshold stepsize, dilate start, dilate end, path to csv
-    test_bench(7,130,140,2,0,1,"Daten_IONIQ5_WLTC_Eco_handgeschrieben.csv")
+    test_bench(4,35,230,3,0,2,"Daten_IONIQ5_WLTC_Eco_handgeschrieben.csv")
     #read_values_from_csv("Daten_IONIQ5_WLTC_Eco_handgeschrieben.csv")
     #print_candidates("outputNov2117_13_00.txt",10,True)
     pass
