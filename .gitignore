@@ -2,3 +2,9 @@
 Test_Screenmaker/*
 Screenshots/*
 TestBenchOutput/*
+build/*
+output/*
+dist/*
+.spec
+.csv
+.exe
