@@ -6,7 +6,7 @@
     - Maybe use some other 
 
 - [ ] whitelist for characters:
-   - [ ] fixed
+   - [x] ~~fixed~~
    - [ ] per cli
 
 
