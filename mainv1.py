@@ -21,7 +21,7 @@ reader = None
 x,y,h,w = 0,0,100,100
 frame,clone = None,None
 worker_progress, RANGE = 0,0
-rectangles = [(963, 494, 84, 84)]
+rectangles = []
 threshold_arg = None
 DEST = "Screenshots\\"
 #pytesseract.pytesseract.tesseract_cmd = "C:\\Users\\Niklas\\AppData\\Local\\Programs\\Tesseract-OCR\\tesseract.exe"
@@ -114,6 +114,7 @@ def save_screenshots(path:str,interval:int=10,fps=29.97,start:int=0,dil=(1,1),th
     print(f" {'Fps':16}: {fps}")
     print(f" {'threshold':16}: {threshold}")
     print(f" {'dilatation':16}: {dil}")
+    print(f" {'allowlist':16}: {'0123456789'}")
     print(f" {'Make Screenshots':16}: {write_screenshot_arg}")
 
     while (cap.isOpened()):
@@ -230,12 +231,12 @@ def split_frame_read_number(rectangles,frame,i,dil,threshold):
         
         tmp = transform_frame(frame[y:y+h,x:x+w],dil,threshold)
         if not np.any(tmp):
-            print("Frame consists only of zeros (Black)")
+            ## print("Frame consists only of zeros (Black)")
             num = ["Blackscreen"]
         else:
             num = get_numbers_ocr(transform_frame(frame[y:y+h,x:x+w],dil,threshold))
         if num == []: num = ["N/A"]  #get_numbers_ocr can return None if only 0 are given
-        print("num gets appended:",num[0], type(num))
+
         out.append(num[0])
         # if not num:
         #     print(f'Frame{i:04d}_{j}.png',num,"<--------------------")
@@ -279,7 +280,7 @@ def init_argparse():
 def get_numbers_ocr(img):
     """reads digits from a picture via teseract"""
     global reader
-    return reader.readtext(img, detail=0)
+    return reader.readtext(img, detail=0, allowlist ='0123456789')
     # return pytesseract.image_to_string(img, lang='eng', config='--psm 10 --oem 3 -c tessedit_char_whitelist=0123456789')
     
 
@@ -305,7 +306,6 @@ def numbers_to_csv(arr:list[list[str]]) -> None:
     except:
         print("[ ! ] Can't create csv-file!")
         return
-    print("RECTANGLES",rectangles)
     writer = csv.writer(csvfile,dialect='excel')
     column_names = None
     while True:
@@ -445,10 +445,10 @@ def main():
     ## TODO implement character space: reader.readtext(input, allowlist ='0123456789')
     reader = easyocr.Reader(['en'])
     results = save_screenshots(path,interval,fps,start)
+    ## print("time",time.time()-t)
     print(results)
     numbers_to_csv(results)
     
-    print(time.time()-t)
     
 
 def debug_main() -> None:
