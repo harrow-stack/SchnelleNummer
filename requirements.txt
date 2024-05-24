@@ -1,5 +1,4 @@
 opencv-contrib-python
-easyocr
 numpy
 Pillow
 opencv-contrib-python
