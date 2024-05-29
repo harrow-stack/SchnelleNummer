@@ -1,9 +1,23 @@
 # SchnelleNummer
-Testing some ocr in python
+Testing some ocr in python (currently using easyocr only "0123456789")
 
-First Value: Gefahrene km [dd.d]
+install requirements:
 
-Second Value: Reststrecke km [ddd]
+    pip install -r requirements.txt
 
----
-Rotate Image so its easier to read  [Reststrecke][2. wert]
+
+This script loads a video and takes a screenshot every *x* seconds.
+Choose one or multiple areas to be read.
+
+## Sample Command
+
+    python main.py -video test.mp4 -interval 5 -out result.csv
+
+Reads *test.mp4* and OCR every *5* seconds -> write results to *result.csv*
+
+    python main.py -h
+
+list all commands
+--- 
+You can swap easyocr with every python ocr.
+Simply edit *get_numbers_ocr()*. It gets an img as an array and should return only the text it recognized.
