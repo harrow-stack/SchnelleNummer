@@ -17,9 +17,12 @@ Reads *test.mp4* and OCR every *5* seconds -> write results to *result.csv*
 
     python main.py -h
 
-list all commands
---- 
 
+list all commands
+
+--- 
+### Change OCR
 You can swap easyocr with every python ocr.
 Simply edit *get_numbers_ocr()*. It gets an img as an array and should return only the text it recognized.
+
 ---
