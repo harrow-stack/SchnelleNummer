@@ -21,3 +21,4 @@ list all commands
 --- 
 You can swap easyocr with every python ocr.
 Simply edit *get_numbers_ocr()*. It gets an img as an array and should return only the text it recognized.
+---
