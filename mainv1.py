@@ -259,7 +259,7 @@ def init_argparse():
     parser.add_argument('-interval',type=int,help="set interval in seconds [default 10]")
     parser.add_argument('-start',type=int,help="timestamp for the first screenshot in seconds [default 0]")
     parser.add_argument('-dest',type=str,help ="Path to destination folder (for Screenshots)")
-    parser.add_argument('-tesseract_path',type=str,help="Path to pytesseract.exe")
+    # parser.add_argument('-tesseract_path',type=str,help="Path to pytesseract.exe")
     parser.add_argument('-debug','-d',action="store_true")
     parser.add_argument('-threshold', help="Value for the img conversion (0-255) [default 130]")
     parser.add_argument('-screenshot',help="Write Screenshots to dest or Screenshots/ [default False]", action="store_true",default=False)
